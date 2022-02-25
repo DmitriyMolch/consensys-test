@@ -76,3 +76,8 @@ export const deleteTransaction = async (id:string, retry?: boolean) => {
   const instance = getAxiosInstance(retry);
   await instance.delete(`${API_BASE_URL}/custodian/transaction/${id}`)
 }
+
+export const deleteAllTransactions = async (retry?: boolean) => {
+  const instance = getAxiosInstance(retry);
+  await instance.delete(`${API_BASE_URL}/custodian/transaction`)
+}

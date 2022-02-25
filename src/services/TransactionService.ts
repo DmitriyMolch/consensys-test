@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import { DataFieldsOnly } from '../utils/types'
 import { EthereumTransaction } from '../data/entities/EthereumTransaction'
 import { InjectRepository } from '@nestjs/typeorm'
-import { In, Repository } from 'typeorm'
+import { In, Not, Repository } from 'typeorm'
 import { Logger } from '@nestjs/common'
 import HDKeyring from 'eth-hd-keyring'
 import { EthereumAccount } from '../data/entities/EthereumAccount'
@@ -15,8 +15,6 @@ import {
 } from '@ethereumjs/tx'
 import Common from '@ethereumjs/common'
 import { EventService } from './EventService'
-
-let nonceCounter = 0
 
 @Injectable()
 export class TransactionService {
@@ -53,6 +51,14 @@ export class TransactionService {
     return await this.ethereumTransactionRepository.findOne(id)
   }
 
+  // Get last transaction nonce
+  async getLastTransactionNonce(): Promise<number> {
+    return Number((await this.ethereumTransactionRepository
+      .createQueryBuilder()
+      .select("MAX(nonce)", "max")
+      .getRawOne()).max)
+  }
+
   // Get all the transactions
 
   async getTransactions(
@@ -78,8 +84,18 @@ export class TransactionService {
       ethereumTransaction.ethereumAccount.id,
     )
 
-    // it's good to save nonceCounter per each transaction into database to get it after application restart
-    const nonce = await this.rpcProvider.getTransactionCount(account.address) + ++nonceCounter    
+    /* It's good to get nonce per each transaction from database or cache 
+     to use it after application restart and distribute between multiple application instances.
+     Another solution could be getting it from a separate counter.
+     */
+    let nonce = await this.getLastTransactionNonce()
+    
+    /* Check if application has transactions with nonce in the database 
+    otherwise take nonce from etherium network transactions counter
+    */
+    nonce = !nonce && nonce !== 0
+      ? await this.rpcProvider.getTransactionCount(account.address) // take from etherium networkd
+      : nonce + 1 // increase database counter
 
     const txParams: JsonTx = {
       to: ethereumTransaction.to,
@@ -162,7 +178,8 @@ export class TransactionService {
   // Delete all the transactions
 
   async deleteAllTransactions() {
-    return this.ethereumTransactionRepository.delete({})
+    const nonce = await this.getLastTransactionNonce()    
+    return this.ethereumTransactionRepository.delete({ nonce: Not(String(nonce)) })
   }
 
   // Delete a single transaction

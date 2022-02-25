@@ -1,7 +1,7 @@
-import { createTransaction, getAccounts, getTransaction, updateTransaction, deleteTransaction } from './utils/requests';
+import { createTransaction, getAccounts, getTransaction, updateTransaction, deleteAllTransactions } from './utils/requests';
 require('dotenv').config()
 
-jest.setTimeout(10000)
+jest.setTimeout(120000)
 
 const transactionIdsToCleanUp = [];
 
@@ -98,8 +98,5 @@ describe('/custodian/transaction', () => {
 })
 
 afterAll( async () => {
-  for (const id of transactionIdsToCleanUp) {
-    console.log(`Deleting transaction ${id}`)
-    await deleteTransaction(id);
-  }
+  await deleteAllTransactions()
 })
